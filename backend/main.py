@@ -26,34 +26,57 @@ async def ingest_events(payload: EventPayload):
         for event in payload.events:
             entities = event.get("entities", [])
             operators_used = event.get("operators_used", [])
+            requested_entities = event.get("requested_entities", [])
             
             cursor.execute("""
-                INSERT INTO events (id, type, latency_ms, language, entity_count, has_pii, entities, operators_used, items_anonymized, flag, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO events (
+                    id, correlation_id, type, latency_ms, language, requested_entities,
+                    score_threshold, allow_list_count, entity_count, has_pii, entities,
+                    operators_used, items_anonymized, flag, nlp_engine,
+                    context_enhancer, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 event["id"],
+                event.get("correlation_id"),
                 event["type"],
                 event.get("latency_ms"),
                 event.get("language"),
+                json.dumps(requested_entities) if requested_entities else None,
+                event.get("score_threshold"),
+                event.get("allow_list_count"),
                 event.get("entity_count"),
                 event.get("has_pii", False),
                 json.dumps(entities) if entities else None,
                 json.dumps(operators_used) if operators_used else None,
                 event.get("items_anonymized"),
                 event.get("flag"),
+                event.get("nlp_engine"),
+                event.get("context_enhancer"),
                 event.get("created_at")
             ))
             
             if event["type"] == "analyze":
                 for ent in entities:
                     cursor.execute("""
-                        INSERT INTO event_entities (event_id, entity_type, score, recognizer, created_at)
-                        VALUES (?, ?, ?, ?, ?)
+                        INSERT INTO event_entities (
+                            event_id, entity_type, score, start, end, span_length,
+                            recognizer, pattern_name, original_score,
+                            score_context_improvement, validation_result, created_at
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         event["id"],
                         ent.get("type"),
                         ent.get("score"),
+                        ent.get("start"),
+                        ent.get("end"),
+                        ent.get("span_length"),
                         ent.get("recognizer"),
+                        ent.get("pattern_name"),
+                        ent.get("original_score"),
+                        ent.get("score_context_improvement"),
+                        ent.get("validation_result"),
                         event.get("created_at")
                     ))
         conn.commit()
@@ -92,6 +115,7 @@ async def recent_events(limit: int = 50):
             d = dict(row)
             if d["entities"]: d["entities"] = json.loads(d["entities"])
             if d["operators_used"]: d["operators_used"] = json.loads(d["operators_used"])
+            if d["requested_entities"]: d["requested_entities"] = json.loads(d["requested_entities"])
             events.append(d)
         return events
 
