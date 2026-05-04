@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "presidio-observer"
+version = "0.1.0"
+description = "Observability and evaluation tool for Microsoft Presidio"
+authors = ["your name <you@email.com>"]
+readme = "README.md"
+packages = [{include = "presidio_observer"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+requests = "^2.28.0"
+
+[tool.poetry.group.dev.dependencies]
+presidio-analyzer = "*"
+presidio-anonymizer = "*"
+pytest = "^7.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

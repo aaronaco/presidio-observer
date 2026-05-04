@@ -1,3 +1,9 @@
+# Local data and databases
+data/
+*.db
+*.db-journal
+
+examples/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
