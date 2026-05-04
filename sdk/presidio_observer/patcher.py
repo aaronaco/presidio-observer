@@ -1,9 +1,11 @@
 import time
 import uuid
 import logging
+from functools import wraps
 from .emitter import submit_event
 
 logger = logging.getLogger(__name__)
+_PATCHED_ATTR = "_presidio_observer_patched"
 
 def patch():
     _patch_analyzer()
@@ -12,14 +14,22 @@ def patch():
 def _patch_analyzer():
     try:
         from presidio_analyzer import AnalyzerEngine
+        if getattr(AnalyzerEngine.analyze, _PATCHED_ATTR, False):
+            return
+
         original_analyze = AnalyzerEngine.analyze
-        
-        def _patched_analyze(self, text, language, **kwargs):
+
+        @wraps(original_analyze)
+        def _patched_analyze(self, *args, **kwargs):
             start_time = time.time()
-            results = original_analyze(self, text=text, language=language, **kwargs)
+            results = original_analyze(self, *args, **kwargs)
             latency_ms = (time.time() - start_time) * 1000
 
             try:
+                language = kwargs.get("language")
+                if language is None and len(args) >= 2:
+                    language = args[1]
+
                 # Calculate scores and entity info
                 entities_data = []
                 has_pii = False
@@ -58,6 +68,7 @@ def _patch_analyzer():
                 
             return results
             
+        setattr(_patched_analyze, _PATCHED_ATTR, True)
         AnalyzerEngine.analyze = _patched_analyze
         logger.debug("Patched presidio_analyzer.AnalyzerEngine.analyze")
     except ImportError:
@@ -66,11 +77,15 @@ def _patch_analyzer():
 def _patch_anonymizer():
     try:
         from presidio_anonymizer import AnonymizerEngine
+        if getattr(AnonymizerEngine.anonymize, _PATCHED_ATTR, False):
+            return
+
         original_anonymize = AnonymizerEngine.anonymize
-        
-        def _patched_anonymize(self, text, analyzer_results, **kwargs):
+
+        @wraps(original_anonymize)
+        def _patched_anonymize(self, *args, **kwargs):
             start_time = time.time()
-            result = original_anonymize(self, text=text, analyzer_results=analyzer_results, **kwargs)
+            result = original_anonymize(self, *args, **kwargs)
             latency_ms = (time.time() - start_time) * 1000
 
             try:
@@ -93,6 +108,7 @@ def _patch_anonymizer():
                 
             return result
             
+        setattr(_patched_anonymize, _PATCHED_ATTR, True)
         AnonymizerEngine.anonymize = _patched_anonymize
         logger.debug("Patched presidio_anonymizer.AnonymizerEngine.anonymize")
     except ImportError:
