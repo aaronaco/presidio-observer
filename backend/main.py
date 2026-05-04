@@ -19,6 +19,8 @@ class LabelPayload(BaseModel):
     entity_type: str
     label: str
     count: Optional[int] = 1
+    entity_start: Optional[int] = None
+    entity_end: Optional[int] = None
 
 SUPPORTED_LABELS = {"correct", "false_positive", "missed"}
 
@@ -127,19 +129,29 @@ async def label_event(event_id: str, payload: LabelPayload):
     if payload.label not in SUPPORTED_LABELS:
         raise HTTPException(status_code=400, detail="Unsupported label")
 
-    label_count = payload.count or 1
+    label_count = payload.count if payload.count is not None else 1
     if label_count < 1:
         raise HTTPException(status_code=400, detail="Label count must be at least 1")
 
     if payload.label in {"correct", "false_positive"}:
         label_count = 1
+    label_entity_start = None if payload.label == "missed" else payload.entity_start
+    label_entity_end = None if payload.label == "missed" else payload.entity_end
 
     with get_db() as conn:
         cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM events WHERE id = ?", (event_id,))
+        if cursor.fetchone() is None:
+            raise HTTPException(status_code=404, detail="Event not found")
+
         if payload.label == "missed":
             cursor.execute("""
                 DELETE FROM labels
-                WHERE event_id = ? AND entity_type = ? AND label = 'missed'
+                WHERE event_id = ?
+                    AND entity_type = ?
+                    AND label = 'missed'
+                    AND entity_start IS NULL
+                    AND entity_end IS NULL
             """, (
                 event_id,
                 payload.entity_type,
@@ -150,17 +162,33 @@ async def label_event(event_id: str, payload: LabelPayload):
                 WHERE event_id = ?
                     AND entity_type = ?
                     AND label IN ('correct', 'false_positive')
+                    AND (
+                        entity_start = ?
+                        OR (entity_start IS NULL AND ? IS NULL)
+                    )
+                    AND (
+                        entity_end = ?
+                        OR (entity_end IS NULL AND ? IS NULL)
+                    )
             """, (
                 event_id,
                 payload.entity_type,
+                label_entity_start,
+                label_entity_start,
+                label_entity_end,
+                label_entity_end,
             ))
 
         cursor.execute("""
-            INSERT INTO labels (event_id, entity_type, label, count, created_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO labels (
+                event_id, entity_type, entity_start, entity_end, label, count, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (
             event_id,
             payload.entity_type,
+            label_entity_start,
+            label_entity_end,
             payload.label,
             label_count,
             time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
@@ -173,7 +201,9 @@ async def event_labels(event_id: str):
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, event_id, entity_type, label, COALESCE(count, 1) as count, created_at
+            SELECT
+                id, event_id, entity_type, entity_start, entity_end, label,
+                COALESCE(count, 1) as count, created_at
             FROM labels
             WHERE event_id = ?
             ORDER BY created_at DESC, id DESC

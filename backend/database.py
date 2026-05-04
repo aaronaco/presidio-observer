@@ -25,6 +25,8 @@ EVENT_ENTITY_COLUMNS = {
 
 LABEL_COLUMNS = {
     "count": "INTEGER",
+    "entity_start": "INTEGER",
+    "entity_end": "INTEGER",
 }
 
 def init_db():
@@ -72,6 +74,8 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 event_id TEXT,
                 entity_type TEXT,
+                entity_start INTEGER,
+                entity_end INTEGER,
                 label TEXT,
                 count INTEGER,
                 created_at TEXT,
@@ -95,6 +99,7 @@ def _ensure_columns(cursor, table_name, columns):
 @contextmanager
 def get_db():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn.execute("PRAGMA foreign_keys = ON")
     conn.row_factory = sqlite3.Row
     try:
         yield conn

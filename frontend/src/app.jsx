@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks'
+import { useEffect, useRef, useState } from 'preact/hooks'
 import {
   Button,
   Column,
@@ -39,6 +39,7 @@ export function App() {
   const [selectedEventId, setSelectedEventId] = useState(null)
   const [labelStatus, setLabelStatus] = useState(idleLabelStatus)
   const [eventLabels, setEventLabels] = useState(idleEventLabels)
+  const labelRequestEventId = useRef(null)
 
   const selectedEvent = dashboard.events.find((event) => event.id === selectedEventId)
   const isInitialLoading = status.loading
@@ -59,12 +60,19 @@ export function App() {
   }
 
   async function loadEventLabels(eventId) {
+    labelRequestEventId.current = eventId
     setEventLabels({ loading: true, error: null, items: [] })
 
     try {
       const items = await fetchEventLabels(eventId)
+      if (labelRequestEventId.current !== eventId) {
+        return
+      }
       setEventLabels({ loading: false, error: null, items })
     } catch (error) {
+      if (labelRequestEventId.current !== eventId) {
+        return
+      }
       setEventLabels({ loading: false, error: error.message, items: [] })
     }
   }
@@ -75,7 +83,7 @@ export function App() {
     loadEventLabels(eventId)
   }
 
-  async function submitLabel(label, entityType, count = 1) {
+  async function submitLabel(label, entityType, count = 1, entityStart = null, entityEnd = null) {
     if (!selectedEvent) {
       return
     }
@@ -87,6 +95,8 @@ export function App() {
         entity_type: entityType || eventEntityTypes(selectedEvent)[0] || 'UNKNOWN',
         label,
         count,
+        entity_start: entityStart,
+        entity_end: entityEnd,
       })
 
       setLabelStatus({
@@ -183,6 +193,7 @@ export function App() {
         labelStatus={labelStatus}
         onClose={() => {
           setSelectedEventId(null)
+          labelRequestEventId.current = null
           setEventLabels(idleEventLabels)
         }}
         onSubmitLabel={submitLabel}

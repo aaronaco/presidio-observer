@@ -49,7 +49,8 @@ export function EventDetailPanel({
   onSubmitLabel,
 }) {
   const entityTypes = event ? eventEntityTypes(event) : []
-  const primaryEntityType = entityTypes[0] || 'UNKNOWN'
+  const primaryEntity = event?.entities?.[0] || null
+  const primaryEntityType = primaryEntity?.type || entityTypes[0] || 'UNKNOWN'
   const missedOptions = event ? missedEntityTypeOptions(event) : []
   const [entitySortMode, setEntitySortMode] = useState('score_desc')
   const visibleEntities = event ? sortEntities(event.entities || [], entitySortMode) : []
@@ -106,6 +107,7 @@ export function EventDetailPanel({
                     eventLabels={eventLabels}
                     labelStatus={labelStatus}
                     missedOptions={missedOptions}
+                    primaryEntity={primaryEntity}
                     primaryEntityType={primaryEntityType}
                     onSubmitLabel={onSubmitLabel}
                     key={event.id}
@@ -220,6 +222,7 @@ function EvaluationControls({
   eventLabels,
   labelStatus,
   missedOptions,
+  primaryEntity,
   primaryEntityType,
   onSubmitLabel,
 }) {
@@ -245,14 +248,26 @@ function EvaluationControls({
         <Button
           kind="primary"
           disabled={labelStatus.loading}
-          onClick={() => onSubmitLabel('correct', primaryEntityType)}
+          onClick={() => onSubmitLabel(
+            'correct',
+            primaryEntityType,
+            1,
+            primaryEntity?.start ?? null,
+            primaryEntity?.end ?? null,
+          )}
         >
           Correct
         </Button>
         <Button
           kind="secondary"
           disabled={labelStatus.loading}
-          onClick={() => onSubmitLabel('false_positive', primaryEntityType)}
+          onClick={() => onSubmitLabel(
+            'false_positive',
+            primaryEntityType,
+            1,
+            primaryEntity?.start ?? null,
+            primaryEntity?.end ?? null,
+          )}
         >
           False positive
         </Button>
@@ -285,7 +300,7 @@ function EvaluationControls({
             kind="tertiary"
             size="sm"
             disabled={labelStatus.loading}
-            onClick={() => onSubmitLabel('missed', missedEntityType, missedCount)}
+            onClick={() => onSubmitLabel('missed', missedEntityType, missedCount, null, null)}
           >
             Report missed
           </Button>
@@ -340,6 +355,7 @@ function EventLabelHistory({ eventLabels }) {
           <div className="label-history-row" key={item.id}>
             <Tag type={labelTagKind(item.label)}>{formatLabel(item.label)}</Tag>
             <span>{item.entity_type || 'UNKNOWN'}</span>
+            <span>{formatLabelSpan(item)}</span>
             <span>Count {item.count || 1}</span>
             <time dateTime={item.created_at}>{formatDate(item.created_at)}</time>
           </div>
@@ -347,4 +363,15 @@ function EventLabelHistory({ eventLabels }) {
       </div>
     </div>
   )
+}
+
+function formatLabelSpan(item) {
+  if (item.entity_start === null || item.entity_start === undefined) {
+    return 'No span'
+  }
+  if (item.entity_end === null || item.entity_end === undefined) {
+    return 'No span'
+  }
+
+  return `Span ${item.entity_start}-${item.entity_end}`
 }
