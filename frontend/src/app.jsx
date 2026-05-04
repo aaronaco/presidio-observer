@@ -75,7 +75,7 @@ export function App() {
     loadEventLabels(eventId)
   }
 
-  async function submitLabel(label, entityType) {
+  async function submitLabel(label, entityType, count = 1) {
     if (!selectedEvent) {
       return
     }
@@ -86,6 +86,7 @@ export function App() {
       await submitEventLabel(selectedEvent.id, {
         entity_type: entityType || eventEntityTypes(selectedEvent)[0] || 'UNKNOWN',
         label,
+        count,
       })
 
       setLabelStatus({
@@ -145,9 +146,9 @@ export function App() {
           value={formatPercent(dashboard.evaluation?.precision)}
         />
         <MetricTile
-          label="Recall"
+          label="Reported F2"
           loading={isInitialLoading}
-          value={formatEvaluationPercent(dashboard.evaluation?.recall)}
+          value={formatEvaluationPercent(dashboard.evaluation?.f2_score)}
         />
       </Grid>
 

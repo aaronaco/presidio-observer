@@ -4,6 +4,7 @@ import {
   AccordionItem,
   Button,
   InlineNotification,
+  NumberInput,
   Select,
   SelectItem,
   Tab,
@@ -21,10 +22,14 @@ import {
   eventEntityCount,
   eventEntityTypes,
   flagKind,
+  missedEntityTypeOptions,
   sortEntities,
 } from '../lib/events'
 
 function labelTagKind(label) {
+  if (label === 'missed') {
+    return 'purple'
+  }
   if (label === 'false_positive') {
     return 'orange'
   }
@@ -45,6 +50,7 @@ export function EventDetailPanel({
 }) {
   const entityTypes = event ? eventEntityTypes(event) : []
   const primaryEntityType = entityTypes[0] || 'UNKNOWN'
+  const missedOptions = event ? missedEntityTypeOptions(event) : []
   const [entitySortMode, setEntitySortMode] = useState('score_desc')
   const visibleEntities = event ? sortEntities(event.entities || [], entitySortMode) : []
 
@@ -99,8 +105,10 @@ export function EventDetailPanel({
                   <EvaluationControls
                     eventLabels={eventLabels}
                     labelStatus={labelStatus}
+                    missedOptions={missedOptions}
                     primaryEntityType={primaryEntityType}
                     onSubmitLabel={onSubmitLabel}
+                    key={event.id}
                   />
                 </TabPanel>
               </TabPanels>
@@ -211,9 +219,18 @@ function EntityAccordionItem({ entity }) {
 function EvaluationControls({
   eventLabels,
   labelStatus,
+  missedOptions,
   primaryEntityType,
   onSubmitLabel,
 }) {
+  const [missedEntityType, setMissedEntityType] = useState(missedOptions[0] || 'EMAIL_ADDRESS')
+  const [missedCount, setMissedCount] = useState(1)
+
+  function updateMissedCount(value) {
+    const nextCount = Number.parseInt(value, 10)
+    setMissedCount(Number.isFinite(nextCount) && nextCount > 0 ? nextCount : 1)
+  }
+
   return (
     <div className="evaluation-panel">
       <p>
@@ -239,6 +256,40 @@ function EvaluationControls({
         >
           False positive
         </Button>
+      </div>
+      <div className="missed-entity-form">
+        <h3>Report missed entity</h3>
+        <p>No raw text, missed value, or span is stored.</p>
+        <div className="missed-entity-fields">
+          <Select
+            id="missed-entity-type"
+            size="sm"
+            labelText="Entity type"
+            value={missedEntityType}
+            onChange={(event) => setMissedEntityType(event.target.value)}
+          >
+            {missedOptions.map((entityType) => (
+              <SelectItem key={entityType} value={entityType} text={entityType} />
+            ))}
+          </Select>
+          <NumberInput
+            id="missed-entity-count"
+            size="sm"
+            label="Count"
+            min={1}
+            step={1}
+            value={missedCount}
+            onChange={(_, { value }) => updateMissedCount(value)}
+          />
+          <Button
+            kind="tertiary"
+            size="sm"
+            disabled={labelStatus.loading}
+            onClick={() => onSubmitLabel('missed', missedEntityType, missedCount)}
+          >
+            Report missed
+          </Button>
+        </div>
       </div>
       <EventLabelHistory eventLabels={eventLabels} />
       {labelStatus.error && (
@@ -289,6 +340,7 @@ function EventLabelHistory({ eventLabels }) {
           <div className="label-history-row" key={item.id}>
             <Tag type={labelTagKind(item.label)}>{formatLabel(item.label)}</Tag>
             <span>{item.entity_type || 'UNKNOWN'}</span>
+            <span>Count {item.count || 1}</span>
             <time dateTime={item.created_at}>{formatDate(item.created_at)}</time>
           </div>
         ))}

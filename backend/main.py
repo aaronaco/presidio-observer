@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional, Any, Dict
 import json
@@ -18,8 +18,9 @@ class EventPayload(BaseModel):
 class LabelPayload(BaseModel):
     entity_type: str
     label: str
+    count: Optional[int] = 1
 
-SUPPORTED_LABELS = {"correct", "false_positive"}
+SUPPORTED_LABELS = {"correct", "false_positive", "missed"}
 
 @app.post("/ingest")
 async def ingest_events(payload: EventPayload):
@@ -124,17 +125,44 @@ async def recent_events(limit: int = 50):
 @app.post("/events/{event_id}/label")
 async def label_event(event_id: str, payload: LabelPayload):
     if payload.label not in SUPPORTED_LABELS:
-        return {"status": "ignored", "reason": "unsupported_label"}
+        raise HTTPException(status_code=400, detail="Unsupported label")
+
+    label_count = payload.count or 1
+    if label_count < 1:
+        raise HTTPException(status_code=400, detail="Label count must be at least 1")
+
+    if payload.label in {"correct", "false_positive"}:
+        label_count = 1
 
     with get_db() as conn:
         cursor = conn.cursor()
+        if payload.label == "missed":
+            cursor.execute("""
+                DELETE FROM labels
+                WHERE event_id = ? AND entity_type = ? AND label = 'missed'
+            """, (
+                event_id,
+                payload.entity_type,
+            ))
+        else:
+            cursor.execute("""
+                DELETE FROM labels
+                WHERE event_id = ?
+                    AND entity_type = ?
+                    AND label IN ('correct', 'false_positive')
+            """, (
+                event_id,
+                payload.entity_type,
+            ))
+
         cursor.execute("""
-            INSERT INTO labels (event_id, entity_type, label, created_at)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO labels (event_id, entity_type, label, count, created_at)
+            VALUES (?, ?, ?, ?, ?)
         """, (
             event_id,
             payload.entity_type,
             payload.label,
+            label_count,
             time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         ))
         conn.commit()
@@ -145,7 +173,7 @@ async def event_labels(event_id: str):
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, event_id, entity_type, label, created_at
+            SELECT id, event_id, entity_type, label, COALESCE(count, 1) as count, created_at
             FROM labels
             WHERE event_id = ?
             ORDER BY created_at DESC, id DESC
@@ -156,19 +184,22 @@ async def event_labels(event_id: str):
 async def evaluation_summary():
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT label, COUNT(*) as count FROM labels GROUP BY label")
+        cursor.execute("SELECT label, SUM(COALESCE(count, 1)) as count FROM labels GROUP BY label")
         counts = {row["label"]: row["count"] for row in cursor.fetchall()}
         
         tp = counts.get("correct", 0)
         fp = counts.get("false_positive", 0)
+        fn = counts.get("missed", 0)
         
         precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+        recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+        f2 = (5 * precision * recall) / ((4 * precision) + recall) if (precision + recall) > 0 else 0
         
         return {
             "tp": tp,
             "fp": fp,
-            "fn": None,
+            "fn": fn,
             "precision": round(precision, 4),
-            "recall": None,
-            "f2_score": None
+            "recall": round(recall, 4),
+            "f2_score": round(f2, 4)
         }

@@ -23,6 +23,10 @@ EVENT_ENTITY_COLUMNS = {
     "validation_result": "TEXT",
 }
 
+LABEL_COLUMNS = {
+    "count": "INTEGER",
+}
+
 def init_db():
     with get_db() as conn:
         cursor = conn.cursor()
@@ -69,12 +73,14 @@ def init_db():
                 event_id TEXT,
                 entity_type TEXT,
                 label TEXT,
+                count INTEGER,
                 created_at TEXT,
                 FOREIGN KEY (event_id) REFERENCES events (id)
             )
         """)
         _ensure_columns(cursor, "events", EVENT_COLUMNS)
         _ensure_columns(cursor, "event_entities", EVENT_ENTITY_COLUMNS)
+        _ensure_columns(cursor, "labels", LABEL_COLUMNS)
         conn.commit()
 
 def _ensure_columns(cursor, table_name, columns):
