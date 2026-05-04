@@ -4,7 +4,6 @@ import {
   Column,
   Grid,
   InlineNotification,
-  Loading,
   Tag,
   Tile,
 } from '@carbon/react'
@@ -12,6 +11,7 @@ import {
 import { fetchDashboard, submitEventLabel } from './api/observer'
 import { EventDetailPanel } from './components/EventDetailPanel'
 import { EventTable } from './components/EventTable'
+import { EventTableSkeleton } from './components/EventTableSkeleton'
 import { MetricTile } from './components/MetricTile'
 import { eventEntityTypes } from './lib/events'
 import { formatNumber, formatPercent } from './lib/formatters'
@@ -35,6 +35,10 @@ export function App() {
   const [labelStatus, setLabelStatus] = useState(idleLabelStatus)
 
   const selectedEvent = dashboard.events.find((event) => event.id === selectedEventId)
+  const isInitialLoading = status.loading
+    && !dashboard.stats
+    && !dashboard.events.length
+    && !dashboard.evaluation
 
   async function loadDashboard() {
     setStatus({ loading: true, error: null })
@@ -106,16 +110,27 @@ export function App() {
         />
       )}
 
-      {status.loading && <Loading withOverlay={false} description="Loading dashboard" />}
-
       <Grid className="metric-grid" condensed>
-        <MetricTile label="Analyze calls" value={formatNumber(dashboard.stats?.total_analyzed)} />
+        <MetricTile
+          label="Analyze calls"
+          loading={isInitialLoading}
+          value={formatNumber(dashboard.stats?.total_analyzed)}
+        />
         <MetricTile
           label="Average latency"
+          loading={isInitialLoading}
           value={`${formatNumber(dashboard.stats?.avg_latency_ms, 1)} ms`}
         />
-        <MetricTile label="Precision" value={formatPercent(dashboard.evaluation?.precision)} />
-        <MetricTile label="F2 score" value={formatPercent(dashboard.evaluation?.f2_score)} />
+        <MetricTile
+          label="Precision"
+          loading={isInitialLoading}
+          value={formatPercent(dashboard.evaluation?.precision)}
+        />
+        <MetricTile
+          label="F2 score"
+          loading={isInitialLoading}
+          value={formatPercent(dashboard.evaluation?.f2_score)}
+        />
       </Grid>
 
       <Grid className="dashboard-grid" condensed>
@@ -128,7 +143,9 @@ export function App() {
               </div>
               <span>Latest 12 events</span>
             </div>
-            {dashboard.events.length ? (
+            {isInitialLoading ? (
+              <EventTableSkeleton />
+            ) : dashboard.events.length ? (
               <EventTable
                 events={dashboard.events}
                 selectedEventId={selectedEventId}
