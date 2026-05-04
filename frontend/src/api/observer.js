@@ -18,6 +18,10 @@ export async function fetchDashboard() {
   return { stats, events, evaluation }
 }
 
+export function fetchEventLabels(eventId) {
+  return fetchJson(`/events/${eventId}/labels`)
+}
+
 export function submitEventLabel(eventId, payload) {
   return fetchJson(`/events/${eventId}/label`, {
     method: 'POST',

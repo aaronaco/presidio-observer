@@ -1,17 +1,14 @@
 import time
 import uuid
 import logging
-import threading
 from functools import wraps
 from .emitter import submit_event
 
 logger = logging.getLogger(__name__)
 _PATCHED_ATTR = "_presidio_observer_patched"
-_context = threading.local()
 
 def patch():
     _patch_analyzer()
-    _patch_anonymizer()
 
 def _arg_or_kwarg(args, kwargs, position, name, default=None):
     if name in kwargs:
@@ -76,7 +73,6 @@ def _patch_analyzer():
                 score_threshold = _arg_or_kwarg(args, kwargs, 3, "score_threshold")
                 allow_list = _arg_or_kwarg(args, kwargs, 7, "allow_list")
                 correlation_id = kwargs.get("correlation_id") or str(uuid.uuid4())
-                _context.correlation_id = correlation_id
 
                 # Calculate scores and entity info
                 entities_data = []
@@ -131,51 +127,5 @@ def _patch_analyzer():
         setattr(_patched_analyze, _PATCHED_ATTR, True)
         AnalyzerEngine.analyze = _patched_analyze
         logger.debug("Patched presidio_analyzer.AnalyzerEngine.analyze")
-    except ImportError:
-        pass
-
-def _patch_anonymizer():
-    try:
-        from presidio_anonymizer import AnonymizerEngine
-        if getattr(AnonymizerEngine.anonymize, _PATCHED_ATTR, False):
-            return
-
-        original_anonymize = AnonymizerEngine.anonymize
-
-        @wraps(original_anonymize)
-        def _patched_anonymize(self, *args, **kwargs):
-            start_time = time.time()
-            result = original_anonymize(self, *args, **kwargs)
-            latency_ms = (time.time() - start_time) * 1000
-
-            try:
-                correlation_id = (
-                    kwargs.get("correlation_id")
-                    or getattr(_context, "correlation_id", None)
-                    or str(uuid.uuid4())
-                )
-                operators_used = []
-                for item in result.items:
-                    operators_used.append(item.operator)
-
-                event = {
-                    "id": str(uuid.uuid4()),
-                    "correlation_id": correlation_id,
-                    "type": "anonymize",
-                    "latency_ms": latency_ms,
-                    "items_anonymized": len(result.items),
-                    "operators_used": operators_used,
-                    "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-                }
-                submit_event(event)
-            except Exception as e:
-                logger.debug(f"Observer anonymizer patch error: {e}")
-                pass
-                
-            return result
-            
-        setattr(_patched_anonymize, _PATCHED_ATTR, True)
-        AnonymizerEngine.anonymize = _patched_anonymize
-        logger.debug("Patched presidio_anonymizer.AnonymizerEngine.anonymize")
     except ImportError:
         pass

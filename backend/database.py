@@ -1,5 +1,4 @@
 import sqlite3
-import json
 import os
 from contextlib import contextmanager
 
@@ -40,8 +39,6 @@ def init_db():
                 entity_count INTEGER,
                 has_pii INTEGER,
                 entities TEXT,
-                operators_used TEXT,
-                items_anonymized INTEGER,
                 flag TEXT,
                 nlp_engine TEXT,
                 context_enhancer TEXT,

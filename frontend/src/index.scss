@@ -313,6 +313,38 @@ body {
   margin: 1.5rem 0;
 }
 
+.label-history {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e0e0e0;
+}
+
+.label-history h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.label-history-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.label-history-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: #f4f4f4;
+}
+
+.label-history-row span,
+.label-history-row time {
+  color: #525252;
+  font-size: 0.875rem;
+}
+
 @media (max-width: 671px) {
   .observer-shell {
     padding: 1rem;
@@ -352,5 +384,10 @@ body {
 
   .entity-controls-fields .cds--btn {
     width: 100%;
+  }
+
+  .label-history-row {
+    grid-template-columns: 1fr;
+    align-items: start;
   }
 }

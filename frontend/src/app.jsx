@@ -7,13 +7,13 @@ import {
   Tile,
 } from '@carbon/react'
 
-import { fetchDashboard, submitEventLabel } from './api/observer'
+import { fetchDashboard, fetchEventLabels, submitEventLabel } from './api/observer'
 import { EventDetailPanel } from './components/EventDetailPanel'
 import { EventTable } from './components/EventTable'
 import { EventTableSkeleton } from './components/EventTableSkeleton'
 import { MetricTile } from './components/MetricTile'
 import { eventEntityTypes } from './lib/events'
-import { formatNumber, formatPercent } from './lib/formatters'
+import { formatEvaluationPercent, formatNumber, formatPercent } from './lib/formatters'
 
 const emptyDashboard = {
   stats: null,
@@ -27,11 +27,18 @@ const idleLabelStatus = {
   success: null,
 }
 
+const idleEventLabels = {
+  loading: false,
+  error: null,
+  items: [],
+}
+
 export function App() {
   const [dashboard, setDashboard] = useState(emptyDashboard)
   const [status, setStatus] = useState({ loading: true, error: null })
   const [selectedEventId, setSelectedEventId] = useState(null)
   const [labelStatus, setLabelStatus] = useState(idleLabelStatus)
+  const [eventLabels, setEventLabels] = useState(idleEventLabels)
 
   const selectedEvent = dashboard.events.find((event) => event.id === selectedEventId)
   const isInitialLoading = status.loading
@@ -51,9 +58,21 @@ export function App() {
     }
   }
 
+  async function loadEventLabels(eventId) {
+    setEventLabels({ loading: true, error: null, items: [] })
+
+    try {
+      const items = await fetchEventLabels(eventId)
+      setEventLabels({ loading: false, error: null, items })
+    } catch (error) {
+      setEventLabels({ loading: false, error: error.message, items: [] })
+    }
+  }
+
   function selectEvent(eventId) {
     setSelectedEventId(eventId)
     setLabelStatus(idleLabelStatus)
+    loadEventLabels(eventId)
   }
 
   async function submitLabel(label, entityType) {
@@ -74,6 +93,7 @@ export function App() {
         error: null,
         success: `${label.replace('_', ' ')} label saved`,
       })
+      loadEventLabels(selectedEvent.id)
       loadDashboard()
     } catch (error) {
       setLabelStatus({ loading: false, error: error.message, success: null })
@@ -125,9 +145,9 @@ export function App() {
           value={formatPercent(dashboard.evaluation?.precision)}
         />
         <MetricTile
-          label="F2 score"
+          label="Recall"
           loading={isInitialLoading}
-          value={formatPercent(dashboard.evaluation?.f2_score)}
+          value={formatEvaluationPercent(dashboard.evaluation?.recall)}
         />
       </Grid>
 
@@ -158,8 +178,12 @@ export function App() {
 
       <EventDetailPanel
         event={selectedEvent}
+        eventLabels={eventLabels}
         labelStatus={labelStatus}
-        onClose={() => setSelectedEventId(null)}
+        onClose={() => {
+          setSelectedEventId(null)
+          setEventLabels(idleEventLabels)
+        }}
         onSubmitLabel={submitLabel}
       />
     </main>

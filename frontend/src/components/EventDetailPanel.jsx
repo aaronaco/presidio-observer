@@ -24,7 +24,25 @@ import {
   sortEntities,
 } from '../lib/events'
 
-export function EventDetailPanel({ event, labelStatus, onClose, onSubmitLabel }) {
+function labelTagKind(label) {
+  if (label === 'false_positive') {
+    return 'orange'
+  }
+
+  return 'green'
+}
+
+function formatLabel(label) {
+  return label.replace('_', ' ')
+}
+
+export function EventDetailPanel({
+  event,
+  eventLabels,
+  labelStatus,
+  onClose,
+  onSubmitLabel,
+}) {
   const entityTypes = event ? eventEntityTypes(event) : []
   const primaryEntityType = entityTypes[0] || 'UNKNOWN'
   const [entitySortMode, setEntitySortMode] = useState('score_desc')
@@ -79,6 +97,7 @@ export function EventDetailPanel({ event, labelStatus, onClose, onSubmitLabel })
                 </TabPanel>
                 <TabPanel>
                   <EvaluationControls
+                    eventLabels={eventLabels}
                     labelStatus={labelStatus}
                     primaryEntityType={primaryEntityType}
                     onSubmitLabel={onSubmitLabel}
@@ -98,6 +117,7 @@ function EventSummary({ event }) {
     <div className="detail-list">
       <DetailItem label="Created" value={formatDate(event.created_at)} />
       <DetailItem label="Correlation ID" value={event.correlation_id || 'n/a'} />
+      <DetailItem label="Confidence flag" value={event.flag || 'n/a'} />
       <DetailItem label="Language" value={event.language || 'n/a'} />
       <DetailItem label="Latency" value={`${formatNumber(event.latency_ms, 1)} ms`} />
       <DetailItem label="Has PII" value={event.has_pii ? 'Yes' : 'No'} />
@@ -107,10 +127,6 @@ function EventSummary({ event }) {
       <DetailItem label="Allow-list count" value={event.allow_list_count ?? 'n/a'} />
       <DetailItem label="NLP engine" value={event.nlp_engine || 'n/a'} />
       <DetailItem label="Context enhancer" value={event.context_enhancer || 'n/a'} />
-      <DetailItem
-        label="Operators used"
-        value={event.operators_used?.length ? event.operators_used.join(', ') : 'n/a'}
-      />
     </div>
   )
 }
@@ -192,11 +208,21 @@ function EntityAccordionItem({ entity }) {
   )
 }
 
-function EvaluationControls({ labelStatus, primaryEntityType, onSubmitLabel }) {
+function EvaluationControls({
+  eventLabels,
+  labelStatus,
+  primaryEntityType,
+  onSubmitLabel,
+}) {
   return (
     <div className="evaluation-panel">
       <p>
-        Submit a privacy-safe label against this event. No raw text is stored or displayed.
+        Label whether the detected entity is correct. Labels are saved for evaluation
+        metrics and do not change the analyzer confidence flag.
+      </p>
+      <p>
+        Missed entities need a separate workflow because they are not present in analyzer
+        results.
       </p>
       <div className="evaluation-actions">
         <Button
@@ -213,14 +239,8 @@ function EvaluationControls({ labelStatus, primaryEntityType, onSubmitLabel }) {
         >
           False positive
         </Button>
-        <Button
-          kind="tertiary"
-          disabled={labelStatus.loading}
-          onClick={() => onSubmitLabel('missed', primaryEntityType)}
-        >
-          Missed
-        </Button>
       </div>
+      <EventLabelHistory eventLabels={eventLabels} />
       {labelStatus.error && (
         <InlineNotification
           kind="error"
@@ -237,6 +257,42 @@ function EvaluationControls({ labelStatus, primaryEntityType, onSubmitLabel }) {
           subtitle={labelStatus.success}
         />
       )}
+    </div>
+  )
+}
+
+function EventLabelHistory({ eventLabels }) {
+  if (eventLabels.loading) {
+    return <p className="empty-state">Loading saved labels...</p>
+  }
+
+  if (eventLabels.error) {
+    return (
+      <InlineNotification
+        kind="error"
+        lowContrast
+        title="Could not load labels"
+        subtitle={eventLabels.error}
+      />
+    )
+  }
+
+  if (!eventLabels.items.length) {
+    return <p className="empty-state">No labels saved for this event yet.</p>
+  }
+
+  return (
+    <div className="label-history">
+      <h3>Saved labels</h3>
+      <div className="label-history-list">
+        {eventLabels.items.map((item) => (
+          <div className="label-history-row" key={item.id}>
+            <Tag type={labelTagKind(item.label)}>{formatLabel(item.label)}</Tag>
+            <span>{item.entity_type || 'UNKNOWN'}</span>
+            <time dateTime={item.created_at}>{formatDate(item.created_at)}</time>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
