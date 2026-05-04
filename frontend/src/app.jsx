@@ -4,7 +4,6 @@ import {
   Column,
   Grid,
   InlineNotification,
-  Tag,
   Tile,
 } from '@carbon/react'
 
@@ -89,11 +88,10 @@ export function App() {
     <main className="observer-shell">
       <section className="observer-hero">
         <div>
-          <Tag type="cyan">Presidio Observer</Tag>
-          <h1>Live privacy telemetry without raw text capture.</h1>
+          <h1>Presidio Observer</h1>
           <p>
-            Monitor analyzer confidence, entity mix, latency, and evaluation
-            quality from the local FastAPI backend.
+            View analyzer events, entity metadata, latency, and evaluation labels
+            from the local backend.
           </p>
         </div>
         <Button kind="primary" onClick={loadDashboard} disabled={status.loading}>
