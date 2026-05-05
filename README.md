@@ -2,16 +2,8 @@
 
 Presidio Observer is a local developer tool for understanding how Microsoft Presidio behaves inside real GenAI and agentic AI workflows.
 
-The project started from a practical gap: when Presidio is used in front of LLM calls, proxies, agents, or redaction pipelines, it can be hard to answer basic engineering questions later:
 
-- What entity types did the analyzer detect?
-- Which recognizers were involved?
-- How confident were the detections?
-- What did the analyzer miss?
-- Are false positives increasing after a recognizer or threshold change?
-- How much latency does the privacy layer add?
-
-Presidio Observer makes those questions visible without storing the original text.
+![Presidio Observer Dashboard](./docs/images/dashboard-screenshot.png)
 
 ## Why this exists
 
