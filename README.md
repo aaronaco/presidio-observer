@@ -246,6 +246,8 @@ poetry install
 poetry run uvicorn main:app --reload
 ```
 
+When running the frontend via `npm run dev`, the backend must also be running (either via Docker or Poetry) so the Vite API proxy can connect.
+
 ## API Overview
 
 The backend API is local-first and supports dashboard/evaluation workflows.
@@ -311,6 +313,16 @@ docker compose config
 ```
 
 Automated tests are intentionally handled after manual verification in the current project workflow.
+
+## Planned Features
+
+Presidio Observer is in active development. The following features are planned for future releases:
+
+- **Automated Testing Suite**: Full `pytest` coverage for the SDK and backend, plus frontend component testing, to ensure long-term stability and regression safety.
+- **Image Redactor Support**: Metadata capture for `ImageAnalyzerEngine` to observe PII detection in images and OCR flows.
+- **Structured Data Support**: Instrumentation for `BatchAnalyzerEngine` to observe PII detection in CSVs, DataFrames, and JSON objects.
+- **Architectural Proxy Support**: A sidecar component that intercepts Presidio's REST API for infrastructure teams who run Presidio as a shared service and cannot use the Python SDK.
+- **Layer 4 LLM Evaluation**: Optional local LLM integration (e.g., via Ollama) to automatically identify potential missed entities without storing raw text.
 
 ## Non-Goals
 
