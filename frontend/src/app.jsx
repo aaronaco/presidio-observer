@@ -7,7 +7,12 @@ import {
   Tile,
 } from '@carbon/react'
 
-import { fetchDashboard, fetchEventLabels, submitEventLabel } from './api/observer'
+import {
+  fetchDashboard,
+  fetchEventLabels,
+  removeEventLabel,
+  submitEventLabel,
+} from './api/observer'
 import {
   DashboardFilters,
   dashboardFiltersToQuery,
@@ -145,6 +150,27 @@ export function App() {
     }
   }
 
+  async function removeLabel(labelId) {
+    if (!selectedEvent) {
+      return
+    }
+
+    setLabelStatus({ loading: true, error: null, success: null })
+
+    try {
+      await removeEventLabel(selectedEvent.id, labelId)
+      setLabelStatus({
+        loading: false,
+        error: null,
+        success: 'Label removed',
+      })
+      loadEventLabels(selectedEvent.id)
+      loadDashboard()
+    } catch (error) {
+      setLabelStatus({ loading: false, error: error.message, success: null })
+    }
+  }
+
   useEffect(() => {
     loadDashboard()
   }, [])
@@ -257,6 +283,7 @@ export function App() {
           labelRequestEventId.current = null
           setEventLabels(idleEventLabels)
         }}
+        onRemoveLabel={removeLabel}
         onSubmitLabel={submitLabel}
       />
     </main>

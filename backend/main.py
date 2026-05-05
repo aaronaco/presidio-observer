@@ -272,6 +272,25 @@ async def event_labels(event_id: str):
         """, (event_id,))
         return [dict(row) for row in cursor.fetchall()]
 
+@app.delete("/events/{event_id}/labels/{label_id}")
+async def remove_event_label(event_id: str, label_id: int):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id FROM labels WHERE id = ? AND event_id = ?",
+            (label_id, event_id),
+        )
+        if cursor.fetchone() is None:
+            raise HTTPException(status_code=404, detail="Label not found")
+
+        cursor.execute(
+            "DELETE FROM labels WHERE id = ? AND event_id = ?",
+            (label_id, event_id),
+        )
+        conn.commit()
+
+    return {"status": "ok"}
+
 @app.get("/evaluation/summary")
 async def evaluation_summary(
     since: Optional[str] = None,

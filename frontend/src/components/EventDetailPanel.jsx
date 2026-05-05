@@ -47,6 +47,7 @@ export function EventDetailPanel({
   eventLabels,
   labelStatus,
   onClose,
+  onRemoveLabel,
   onSubmitLabel,
 }) {
   const entityTypes = event ? eventEntityTypes(event) : []
@@ -108,6 +109,7 @@ export function EventDetailPanel({
                     eventLabels={eventLabels}
                     labelStatus={labelStatus}
                     missedOptions={missedOptions}
+                    onRemoveLabel={onRemoveLabel}
                     primaryEntity={primaryEntity}
                     primaryEntityType={primaryEntityType}
                     onSubmitLabel={onSubmitLabel}
@@ -234,6 +236,7 @@ function EvaluationControls({
   eventLabels,
   labelStatus,
   missedOptions,
+  onRemoveLabel,
   primaryEntity,
   primaryEntityType,
   onSubmitLabel,
@@ -324,7 +327,11 @@ function EvaluationControls({
           </Button>
         </div>
       </div>
-      <EventLabelHistory eventLabels={eventLabels} />
+      <EventLabelHistory
+        eventLabels={eventLabels}
+        labelStatus={labelStatus}
+        onRemoveLabel={onRemoveLabel}
+      />
       {labelStatus.error && (
         <InlineNotification
           kind="error"
@@ -345,7 +352,7 @@ function EvaluationControls({
   )
 }
 
-function EventLabelHistory({ eventLabels }) {
+function EventLabelHistory({ eventLabels, labelStatus, onRemoveLabel }) {
   if (eventLabels.loading) {
     return <p className="empty-state">Loading saved labels...</p>
   }
@@ -376,6 +383,14 @@ function EventLabelHistory({ eventLabels }) {
             <span>{formatLabelSpan(item)}</span>
             <span>Count {item.count || 1}</span>
             <time dateTime={item.created_at}>{formatDate(item.created_at)}</time>
+            <Button
+              kind="danger--ghost"
+              size="sm"
+              disabled={labelStatus.loading}
+              onClick={() => onRemoveLabel(item.id)}
+            >
+              Remove label
+            </Button>
           </div>
         ))}
       </div>

@@ -54,3 +54,9 @@ export function submitEventLabel(eventId, payload) {
     body: JSON.stringify(payload),
   })
 }
+
+export function removeEventLabel(eventId, labelId) {
+  return fetchJson(`/events/${eventId}/labels/${labelId}`, {
+    method: 'DELETE',
+  })
+}
