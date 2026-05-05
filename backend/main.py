@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
 from typing import List, Optional, Any, Dict
 import json
@@ -23,6 +23,37 @@ class LabelPayload(BaseModel):
     entity_end: Optional[int] = None
 
 SUPPORTED_LABELS = {"correct", "false_positive", "missed"}
+
+def build_event_filters(
+    since: Optional[str] = None,
+    language: Optional[str] = None,
+    entity_type: Optional[str] = None,
+    flag: Optional[str] = None,
+):
+    filters = ["events.type = 'analyze'"]
+    params = []
+
+    if since:
+        filters.append("events.created_at >= ?")
+        params.append(since)
+    if language:
+        filters.append("events.language = ?")
+        params.append(language)
+    if flag:
+        filters.append("events.flag = ?")
+        params.append(flag)
+    if entity_type:
+        filters.append("""
+            EXISTS (
+                SELECT 1
+                FROM event_entities
+                WHERE event_entities.event_id = events.id
+                    AND event_entities.entity_type = ?
+            )
+        """)
+        params.append(entity_type)
+
+    return " AND ".join(filters), params
 
 @app.post("/ingest")
 async def ingest_events(payload: EventPayload):
@@ -86,14 +117,20 @@ async def ingest_events(payload: EventPayload):
     return {"status": "ok"}
 
 @app.get("/stats")
-async def get_stats(since: Optional[str] = None):
-    # Basic implementation
+async def get_stats(
+    since: Optional[str] = None,
+    language: Optional[str] = None,
+    entity_type: Optional[str] = None,
+    flag: Optional[str] = None,
+):
+    where_clause, params = build_event_filters(since, language, entity_type, flag)
+
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) as count FROM events WHERE type='analyze'")
+        cursor.execute(f"SELECT COUNT(*) as count FROM events WHERE {where_clause}", params)
         analyze_count = cursor.fetchone()["count"]
         
-        cursor.execute("SELECT AVG(latency_ms) as avg_latency FROM events WHERE type='analyze'")
+        cursor.execute(f"SELECT AVG(latency_ms) as avg_latency FROM events WHERE {where_clause}", params)
         avg_latency = cursor.fetchone()["avg_latency"]
         
         return {
@@ -102,17 +139,42 @@ async def get_stats(since: Optional[str] = None):
         }
 
 @app.get("/entities/breakdown")
-async def entities_breakdown():
+async def entities_breakdown(
+    since: Optional[str] = None,
+    language: Optional[str] = None,
+    entity_type: Optional[str] = None,
+    flag: Optional[str] = None,
+):
+    where_clause, params = build_event_filters(since, language, entity_type, flag)
+
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT entity_type, COUNT(*) as count FROM event_entities GROUP BY entity_type ORDER BY count DESC")
+        cursor.execute(f"""
+            SELECT event_entities.entity_type, COUNT(*) as count
+            FROM event_entities
+            JOIN events ON events.id = event_entities.event_id
+            WHERE {where_clause}
+            GROUP BY event_entities.entity_type
+            ORDER BY count DESC
+        """, params)
         return [dict(row) for row in cursor.fetchall()]
 
 @app.get("/events/recent")
-async def recent_events(limit: int = 50):
+async def recent_events(
+    limit: int = Query(default=50, ge=1, le=200),
+    since: Optional[str] = None,
+    language: Optional[str] = None,
+    entity_type: Optional[str] = None,
+    flag: Optional[str] = None,
+):
+    where_clause, params = build_event_filters(since, language, entity_type, flag)
+
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM events WHERE type='analyze' ORDER BY created_at DESC LIMIT ?", (limit,))
+        cursor.execute(
+            f"SELECT * FROM events WHERE {where_clause} ORDER BY created_at DESC LIMIT ?",
+            [*params, limit],
+        )
         events = []
         for row in cursor.fetchall():
             d = dict(row)
@@ -211,10 +273,29 @@ async def event_labels(event_id: str):
         return [dict(row) for row in cursor.fetchall()]
 
 @app.get("/evaluation/summary")
-async def evaluation_summary():
+async def evaluation_summary(
+    since: Optional[str] = None,
+    language: Optional[str] = None,
+    entity_type: Optional[str] = None,
+    flag: Optional[str] = None,
+):
+    where_clause, params = build_event_filters(since, language, None, flag)
+    label_filters = [where_clause]
+    label_params = [*params]
+
+    if entity_type:
+        label_filters.append("labels.entity_type = ?")
+        label_params.append(entity_type)
+
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT label, SUM(COALESCE(count, 1)) as count FROM labels GROUP BY label")
+        cursor.execute(f"""
+            SELECT labels.label, SUM(COALESCE(labels.count, 1)) as count
+            FROM labels
+            JOIN events ON events.id = labels.event_id
+            WHERE {" AND ".join(label_filters)}
+            GROUP BY labels.label
+        """, label_params)
         counts = {row["label"]: row["count"] for row in cursor.fetchall()}
         
         tp = counts.get("correct", 0)

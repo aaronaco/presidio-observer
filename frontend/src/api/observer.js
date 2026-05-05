@@ -8,11 +8,36 @@ export async function fetchJson(path, options) {
   return response.json()
 }
 
-export async function fetchDashboard() {
+function buildDashboardQuery(filters = {}) {
+  const params = new URLSearchParams()
+
+  if (filters.since) {
+    params.set('since', filters.since)
+  }
+  if (filters.language) {
+    params.set('language', filters.language)
+  }
+  if (filters.entityType) {
+    params.set('entity_type', filters.entityType)
+  }
+  if (filters.flag) {
+    params.set('flag', filters.flag)
+  }
+
+  const query = params.toString()
+  return query
+}
+
+export async function fetchDashboard(filters = {}) {
+  const query = buildDashboardQuery(filters)
+  const statsPath = query ? `/stats?${query}` : '/stats'
+  const eventsPath = query ? `/events/recent?limit=12&${query}` : '/events/recent?limit=12'
+  const evaluationPath = query ? `/evaluation/summary?${query}` : '/evaluation/summary'
+
   const [stats, events, evaluation] = await Promise.all([
-    fetchJson('/stats'),
-    fetchJson('/events/recent?limit=12'),
-    fetchJson('/evaluation/summary'),
+    fetchJson(statsPath),
+    fetchJson(eventsPath),
+    fetchJson(evaluationPath),
   ])
 
   return { stats, events, evaluation }

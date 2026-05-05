@@ -8,6 +8,12 @@ import {
 } from '@carbon/react'
 
 import { fetchDashboard, fetchEventLabels, submitEventLabel } from './api/observer'
+import {
+  DashboardFilters,
+  dashboardFiltersToQuery,
+  defaultDashboardFilters,
+  hasActiveDashboardFilters,
+} from './components/DashboardFilters'
 import { EventDetailPanel } from './components/EventDetailPanel'
 import { EventTable } from './components/EventTable'
 import { EventTableSkeleton } from './components/EventTableSkeleton'
@@ -39,24 +45,51 @@ export function App() {
   const [selectedEventId, setSelectedEventId] = useState(null)
   const [labelStatus, setLabelStatus] = useState(idleLabelStatus)
   const [eventLabels, setEventLabels] = useState(idleEventLabels)
+  const [dashboardFilters, setDashboardFilters] = useState(defaultDashboardFilters)
+  const [appliedDashboardFilters, setAppliedDashboardFilters] = useState(defaultDashboardFilters)
   const labelRequestEventId = useRef(null)
 
   const selectedEvent = dashboard.events.find((event) => event.id === selectedEventId)
+  const filtersActive = hasActiveDashboardFilters(appliedDashboardFilters)
   const isInitialLoading = status.loading
     && !dashboard.stats
     && !dashboard.events.length
     && !dashboard.evaluation
 
-  async function loadDashboard() {
+  async function loadDashboard(filters = appliedDashboardFilters) {
     setStatus({ loading: true, error: null })
 
     try {
-      const nextDashboard = await fetchDashboard()
+      const nextDashboard = await fetchDashboard(dashboardFiltersToQuery(filters))
       setDashboard(nextDashboard)
       setStatus({ loading: false, error: null })
     } catch (error) {
       setStatus({ loading: false, error: error.message })
     }
+  }
+
+  function updateDashboardFilters(nextFilters) {
+    setDashboardFilters((currentFilters) => ({
+      ...currentFilters,
+      ...nextFilters,
+    }))
+  }
+
+  function applyDashboardFilters() {
+    setAppliedDashboardFilters(dashboardFilters)
+    setSelectedEventId(null)
+    setEventLabels(idleEventLabels)
+    labelRequestEventId.current = null
+    loadDashboard(dashboardFilters)
+  }
+
+  function resetDashboardFilters() {
+    setDashboardFilters(defaultDashboardFilters)
+    setAppliedDashboardFilters(defaultDashboardFilters)
+    setSelectedEventId(null)
+    setEventLabels(idleEventLabels)
+    labelRequestEventId.current = null
+    loadDashboard(defaultDashboardFilters)
   }
 
   async function loadEventLabels(eventId) {
@@ -164,13 +197,34 @@ export function App() {
 
       <Grid className="dashboard-grid" condensed>
         <Column sm={4} md={8} lg={16}>
+          <Tile className="panel dashboard-filter-panel">
+            <div className="panel-heading">
+              <div>
+                <h2>Filters</h2>
+                <p>Limit local dashboard data by analyzer metadata.</p>
+              </div>
+              <span>{filtersActive ? 'Filtered view' : 'All analyzer events'}</span>
+            </div>
+            <DashboardFilters
+              filters={dashboardFilters}
+              loading={status.loading}
+              onApply={applyDashboardFilters}
+              onChange={updateDashboardFilters}
+              onReset={resetDashboardFilters}
+            />
+          </Tile>
+        </Column>
+      </Grid>
+
+      <Grid className="dashboard-grid" condensed>
+        <Column sm={4} md={8} lg={16}>
           <Tile className="panel">
             <div className="panel-heading">
               <div>
                 <h2>Event Worklist</h2>
                 <p>Click a row to inspect metadata and submit evaluation labels.</p>
               </div>
-              <span>Latest 12 events</span>
+              <span>{filtersActive ? 'Latest 12 matching events' : 'Latest 12 events'}</span>
             </div>
             {isInitialLoading ? (
               <EventTableSkeleton />

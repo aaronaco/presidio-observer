@@ -93,6 +93,11 @@ body {
   min-height: 24rem;
 }
 
+.dashboard-filter-panel {
+  min-height: auto;
+  margin-bottom: 1rem;
+}
+
 .panel-heading {
   display: flex;
   align-items: baseline;
@@ -116,6 +121,27 @@ body {
 .empty-state {
   margin: 0;
   color: #6f6f6f;
+}
+
+.dashboard-filters {
+  display: grid;
+  gap: 1rem;
+}
+
+.dashboard-filter-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.dashboard-filter-fields .cds--form-item {
+  margin-bottom: 0;
+}
+
+.dashboard-filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .event-table-container {
@@ -391,6 +417,14 @@ body {
   .observer-hero .cds--btn {
     width: 100%;
     margin-top: 1.5rem;
+  }
+
+  .dashboard-filter-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-filter-actions .cds--btn {
+    width: 100%;
   }
 
   .event-drawer {
