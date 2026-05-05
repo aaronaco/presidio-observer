@@ -169,6 +169,23 @@ body {
   gap: 0.5rem;
 }
 
+.dashboard-refresh-controls {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e0e0e0;
+}
+
+.dashboard-refresh-controls .cds--form-item {
+  margin-bottom: 0;
+}
+
+.dashboard-refresh-controls .cds--select {
+  min-width: 13rem;
+}
+
 .event-table-container {
   margin-inline: -1rem;
 }
@@ -450,6 +467,15 @@ body {
 
   .dashboard-filter-actions .cds--btn {
     width: 100%;
+  }
+
+  .dashboard-refresh-controls {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-refresh-controls .cds--select {
+    min-width: 0;
   }
 
   .event-drawer {

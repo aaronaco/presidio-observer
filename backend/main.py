@@ -1,19 +1,60 @@
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+from enum import Enum
 from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel
-from typing import List, Optional, Any, Dict
+from pydantic import BaseModel, ConfigDict, Field
+from typing import List, Optional, Any
 import json
-import time
 
 from database import init_db, get_db
 
-app = FastAPI(title="Presidio Observer")
-
-@app.on_event("startup")
-def startup_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     init_db()
+    yield
+
+app = FastAPI(title="Presidio Observer", lifespan=lifespan)
+
+class ConfidenceFlag(str, Enum):
+    confident = "confident"
+    uncertain = "uncertain"
+    anomaly = "anomaly"
+
+class EntityPayload(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    type: Optional[str] = None
+    score: Optional[float] = None
+    start: Optional[int] = None
+    end: Optional[int] = None
+    span_length: Optional[int] = None
+    recognizer: Optional[str] = None
+    pattern_name: Optional[str] = None
+    original_score: Optional[float] = None
+    score_context_improvement: Optional[float] = None
+    validation_result: Optional[Any] = None
+
+class ObserverEventPayload(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    id: str
+    correlation_id: Optional[str] = None
+    type: str
+    latency_ms: Optional[float] = None
+    language: Optional[str] = None
+    requested_entities: List[str] = Field(default_factory=list)
+    score_threshold: Optional[float] = None
+    allow_list_count: Optional[int] = None
+    entity_count: Optional[int] = None
+    has_pii: bool = False
+    entities: List[EntityPayload] = Field(default_factory=list)
+    flag: Optional[str] = None
+    nlp_engine: Optional[str] = None
+    context_enhancer: Optional[str] = None
+    created_at: Optional[str] = None
 
 class EventPayload(BaseModel):
-    events: List[Dict[str, Any]]
+    events: List[ObserverEventPayload]
 
 class LabelPayload(BaseModel):
     entity_type: str
@@ -23,9 +64,43 @@ class LabelPayload(BaseModel):
     entity_end: Optional[int] = None
 
 SUPPORTED_LABELS = {"correct", "false_positive", "missed"}
+SUPPORTED_FLAGS = {item.value for item in ConfidenceFlag}
+
+def utc_now_iso():
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+def datetime_to_iso(value: Optional[datetime]):
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+def sanitize_entity(entity: EntityPayload):
+    return {
+        "type": entity.type,
+        "score": entity.score,
+        "start": entity.start,
+        "end": entity.end,
+        "span_length": entity.span_length,
+        "recognizer": entity.recognizer,
+        "pattern_name": entity.pattern_name,
+        "original_score": entity.original_score,
+        "score_context_improvement": entity.score_context_improvement,
+        "validation_result": (
+            str(entity.validation_result)
+            if entity.validation_result is not None
+            else None
+        ),
+    }
+
+def sanitize_flag(flag: Optional[str]):
+    if flag in SUPPORTED_FLAGS:
+        return flag
+    return None
 
 def build_event_filters(
-    since: Optional[str] = None,
+    since: Optional[datetime] = None,
     language: Optional[str] = None,
     entity_type: Optional[str] = None,
     flag: Optional[str] = None,
@@ -35,7 +110,7 @@ def build_event_filters(
 
     if since:
         filters.append("events.created_at >= ?")
-        params.append(since)
+        params.append(datetime_to_iso(since))
     if language:
         filters.append("events.language = ?")
         params.append(language)
@@ -56,40 +131,44 @@ def build_event_filters(
     return " AND ".join(filters), params
 
 @app.post("/ingest")
-async def ingest_events(payload: EventPayload):
+def ingest_events(payload: EventPayload):
     with get_db() as conn:
         cursor = conn.cursor()
         for event in payload.events:
-            if event.get("type") != "analyze":
+            if event.type != "analyze":
                 continue
 
-            entities = event.get("entities", [])
-            requested_entities = event.get("requested_entities", [])
+            entities = [sanitize_entity(entity) for entity in event.entities]
+            requested_entities = event.requested_entities
+            created_at = event.created_at or utc_now_iso()
+            flag = sanitize_flag(event.flag)
             
             cursor.execute("""
-                INSERT INTO events (
+                INSERT OR IGNORE INTO events (
                     id, correlation_id, type, latency_ms, language, requested_entities,
                     score_threshold, allow_list_count, entity_count, has_pii, entities,
                     flag, nlp_engine, context_enhancer, created_at
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                event["id"],
-                event.get("correlation_id"),
-                event["type"],
-                event.get("latency_ms"),
-                event.get("language"),
+                event.id,
+                event.correlation_id,
+                event.type,
+                event.latency_ms,
+                event.language,
                 json.dumps(requested_entities) if requested_entities else None,
-                event.get("score_threshold"),
-                event.get("allow_list_count"),
-                event.get("entity_count"),
-                event.get("has_pii", False),
+                event.score_threshold,
+                event.allow_list_count,
+                len(entities),
+                bool(entities),
                 json.dumps(entities) if entities else None,
-                event.get("flag"),
-                event.get("nlp_engine"),
-                event.get("context_enhancer"),
-                event.get("created_at")
+                flag,
+                event.nlp_engine,
+                event.context_enhancer,
+                created_at
             ))
+            if cursor.rowcount == 0:
+                continue
             
             for ent in entities:
                 cursor.execute("""
@@ -100,7 +179,7 @@ async def ingest_events(payload: EventPayload):
                     )
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
-                    event["id"],
+                    event.id,
                     ent.get("type"),
                     ent.get("score"),
                     ent.get("start"),
@@ -111,19 +190,20 @@ async def ingest_events(payload: EventPayload):
                     ent.get("original_score"),
                     ent.get("score_context_improvement"),
                     ent.get("validation_result"),
-                    event.get("created_at")
+                    created_at
                 ))
         conn.commit()
     return {"status": "ok"}
 
 @app.get("/stats")
-async def get_stats(
-    since: Optional[str] = None,
+def get_stats(
+    since: Optional[datetime] = None,
     language: Optional[str] = None,
     entity_type: Optional[str] = None,
-    flag: Optional[str] = None,
+    flag: Optional[ConfidenceFlag] = None,
 ):
-    where_clause, params = build_event_filters(since, language, entity_type, flag)
+    flag_value = flag.value if flag else None
+    where_clause, params = build_event_filters(since, language, entity_type, flag_value)
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -139,13 +219,14 @@ async def get_stats(
         }
 
 @app.get("/entities/breakdown")
-async def entities_breakdown(
-    since: Optional[str] = None,
+def entities_breakdown(
+    since: Optional[datetime] = None,
     language: Optional[str] = None,
     entity_type: Optional[str] = None,
-    flag: Optional[str] = None,
+    flag: Optional[ConfidenceFlag] = None,
 ):
-    where_clause, params = build_event_filters(since, language, entity_type, flag)
+    flag_value = flag.value if flag else None
+    where_clause, params = build_event_filters(since, language, entity_type, flag_value)
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -160,14 +241,15 @@ async def entities_breakdown(
         return [dict(row) for row in cursor.fetchall()]
 
 @app.get("/events/recent")
-async def recent_events(
+def recent_events(
     limit: int = Query(default=50, ge=1, le=200),
-    since: Optional[str] = None,
+    since: Optional[datetime] = None,
     language: Optional[str] = None,
     entity_type: Optional[str] = None,
-    flag: Optional[str] = None,
+    flag: Optional[ConfidenceFlag] = None,
 ):
-    where_clause, params = build_event_filters(since, language, entity_type, flag)
+    flag_value = flag.value if flag else None
+    where_clause, params = build_event_filters(since, language, entity_type, flag_value)
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -187,7 +269,7 @@ async def recent_events(
         return events
 
 @app.post("/events/{event_id}/label")
-async def label_event(event_id: str, payload: LabelPayload):
+def label_event(event_id: str, payload: LabelPayload):
     if payload.label not in SUPPORTED_LABELS:
         raise HTTPException(status_code=400, detail="Unsupported label")
 
@@ -253,13 +335,13 @@ async def label_event(event_id: str, payload: LabelPayload):
             label_entity_end,
             payload.label,
             label_count,
-            time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            utc_now_iso()
         ))
         conn.commit()
     return {"status": "ok"}
 
 @app.get("/events/{event_id}/labels")
-async def event_labels(event_id: str):
+def event_labels(event_id: str):
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -273,7 +355,7 @@ async def event_labels(event_id: str):
         return [dict(row) for row in cursor.fetchall()]
 
 @app.delete("/events/{event_id}/labels/{label_id}")
-async def remove_event_label(event_id: str, label_id: int):
+def remove_event_label(event_id: str, label_id: int):
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
@@ -292,13 +374,14 @@ async def remove_event_label(event_id: str, label_id: int):
     return {"status": "ok"}
 
 @app.get("/evaluation/summary")
-async def evaluation_summary(
-    since: Optional[str] = None,
+def evaluation_summary(
+    since: Optional[datetime] = None,
     language: Optional[str] = None,
     entity_type: Optional[str] = None,
-    flag: Optional[str] = None,
+    flag: Optional[ConfidenceFlag] = None,
 ):
-    where_clause, params = build_event_filters(since, language, None, flag)
+    flag_value = flag.value if flag else None
+    where_clause, params = build_event_filters(since, language, None, flag_value)
     label_filters = [where_clause]
     label_params = [*params]
 

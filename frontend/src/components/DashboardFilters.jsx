@@ -1,5 +1,6 @@
 import {
   Button,
+  Checkbox,
   Select,
   SelectItem,
   TextInput,
@@ -22,12 +23,21 @@ const timeRangeOptions = [
   { value: '7d', text: 'Last 7 days' },
 ]
 
+const refreshIntervalOptions = [
+  { value: '5000', text: 'Every 5 seconds' },
+  { value: '10000', text: 'Every 10 seconds' },
+  { value: '30000', text: 'Every 30 seconds' },
+  { value: '60000', text: 'Every 60 seconds' },
+]
+
 export function dashboardFiltersToQuery(filters) {
+  const language = filters.language || ''
+
   return {
     since: rangeToSince(filters.timeRange),
-    language: filters.language.trim(),
-    entityType: filters.entityType,
-    flag: filters.flag,
+    language: language.trim(),
+    entityType: filters.entityType || '',
+    flag: filters.flag || '',
   }
 }
 
@@ -41,10 +51,14 @@ export function hasActiveDashboardFilters(filters) {
 }
 
 export function DashboardFilters({
+  autoRefresh,
   filters,
+  refreshIntervalMs,
   loading,
   onApply,
+  onAutoRefreshChange,
   onChange,
+  onRefreshIntervalChange,
   onReset,
 }) {
   return (
@@ -107,6 +121,26 @@ export function DashboardFilters({
         <Button type="button" kind="ghost" size="sm" disabled={loading} onClick={onReset}>
           Reset
         </Button>
+      </div>
+      <div className="dashboard-refresh-controls">
+        <Checkbox
+          id="dashboard-auto-refresh"
+          labelText="Auto refresh"
+          checked={autoRefresh}
+          onChange={(_, { checked }) => onAutoRefreshChange(checked)}
+        />
+        <Select
+          id="dashboard-refresh-interval"
+          size="sm"
+          labelText="Refresh interval"
+          value={String(refreshIntervalMs)}
+          disabled={!autoRefresh}
+          onChange={(event) => onRefreshIntervalChange(Number.parseInt(event.target.value, 10))}
+        >
+          {refreshIntervalOptions.map((option) => (
+            <SelectItem key={option.value} value={option.value} text={option.text} />
+          ))}
+        </Select>
       </div>
     </form>
   )

@@ -53,7 +53,10 @@ export function App() {
   const [eventLabels, setEventLabels] = useState(idleEventLabels)
   const [dashboardFilters, setDashboardFilters] = useState(defaultDashboardFilters)
   const [appliedDashboardFilters, setAppliedDashboardFilters] = useState(defaultDashboardFilters)
+  const [autoRefresh, setAutoRefresh] = useState(false)
+  const [refreshIntervalMs, setRefreshIntervalMs] = useState(30000)
   const labelRequestEventId = useRef(null)
+  const refreshInFlight = useRef(false)
 
   const selectedEvent = dashboard.events.find((event) => event.id === selectedEventId)
   const filtersActive = hasActiveDashboardFilters(appliedDashboardFilters)
@@ -63,6 +66,11 @@ export function App() {
     && !dashboard.evaluation
 
   async function loadDashboard(filters = appliedDashboardFilters) {
+    if (refreshInFlight.current) {
+      return
+    }
+
+    refreshInFlight.current = true
     setStatus({ loading: true, error: null })
 
     try {
@@ -71,6 +79,8 @@ export function App() {
       setStatus({ loading: false, error: null })
     } catch (error) {
       setStatus({ loading: false, error: error.message })
+    } finally {
+      refreshInFlight.current = false
     }
   }
 
@@ -175,6 +185,18 @@ export function App() {
     loadDashboard()
   }, [])
 
+  useEffect(() => {
+    if (!autoRefresh) {
+      return undefined
+    }
+
+    const intervalId = window.setInterval(() => {
+      loadDashboard(appliedDashboardFilters)
+    }, refreshIntervalMs)
+
+    return () => window.clearInterval(intervalId)
+  }, [autoRefresh, refreshIntervalMs, appliedDashboardFilters])
+
   return (
     <main className="observer-shell">
       <section className="observer-hero">
@@ -185,7 +207,7 @@ export function App() {
             from the local backend.
           </p>
         </div>
-        <Button kind="primary" onClick={loadDashboard} disabled={status.loading}>
+        <Button kind="primary" onClick={() => loadDashboard()} disabled={status.loading}>
           Refresh dashboard
         </Button>
       </section>
@@ -239,10 +261,14 @@ export function App() {
               <span>{filtersActive ? 'Filtered view' : 'All analyzer events'}</span>
             </div>
             <DashboardFilters
+              autoRefresh={autoRefresh}
               filters={dashboardFilters}
+              refreshIntervalMs={refreshIntervalMs}
               loading={status.loading}
               onApply={applyDashboardFilters}
+              onAutoRefreshChange={setAutoRefresh}
               onChange={updateDashboardFilters}
+              onRefreshIntervalChange={setRefreshIntervalMs}
               onReset={resetDashboardFilters}
             />
           </Tile>

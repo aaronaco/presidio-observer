@@ -29,6 +29,15 @@ LABEL_COLUMNS = {
     "entity_end": "INTEGER",
 }
 
+INDEXES = [
+    "CREATE INDEX IF NOT EXISTS idx_events_created_at ON events (created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_events_language ON events (language)",
+    "CREATE INDEX IF NOT EXISTS idx_events_flag ON events (flag)",
+    "CREATE INDEX IF NOT EXISTS idx_event_entities_event_id ON event_entities (event_id)",
+    "CREATE INDEX IF NOT EXISTS idx_event_entities_entity_type ON event_entities (entity_type)",
+    "CREATE INDEX IF NOT EXISTS idx_labels_event_id ON labels (event_id)",
+]
+
 def init_db():
     with get_db() as conn:
         cursor = conn.cursor()
@@ -85,6 +94,7 @@ def init_db():
         _ensure_columns(cursor, "events", EVENT_COLUMNS)
         _ensure_columns(cursor, "event_entities", EVENT_ENTITY_COLUMNS)
         _ensure_columns(cursor, "labels", LABEL_COLUMNS)
+        _ensure_indexes(cursor)
         conn.commit()
 
 def _ensure_columns(cursor, table_name, columns):
@@ -95,6 +105,10 @@ def _ensure_columns(cursor, table_name, columns):
     for column_name, column_type in columns.items():
         if column_name not in existing_columns:
             cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
+
+def _ensure_indexes(cursor):
+    for statement in INDEXES:
+        cursor.execute(statement)
 
 @contextmanager
 def get_db():

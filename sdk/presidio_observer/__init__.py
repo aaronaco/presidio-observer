@@ -1,4 +1,4 @@
-from .emitter import init_emitter
+from .emitter import emitter_metrics, init_emitter
 from .patcher import patch
 
 def init(endpoint: str = "http://localhost:8000"):
@@ -11,3 +11,6 @@ def init(endpoint: str = "http://localhost:8000"):
     """
     init_emitter(endpoint)
     patch()
+
+def metrics():
+    return emitter_metrics()

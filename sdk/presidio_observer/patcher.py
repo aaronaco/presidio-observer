@@ -1,6 +1,7 @@
-import time
 import uuid
 import logging
+from datetime import datetime, timezone
+from time import perf_counter
 from functools import wraps
 from .emitter import submit_event
 
@@ -29,6 +30,9 @@ def _allow_list_count(allow_list):
         return len(allow_list)
     except TypeError:
         return None
+
+def _utc_now_iso():
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 def _analysis_explanation_metadata(result):
     explanation = getattr(result, "analysis_explanation", None)
@@ -63,9 +67,9 @@ def _patch_analyzer():
 
         @wraps(original_analyze)
         def _patched_analyze(self, *args, **kwargs):
-            start_time = time.time()
+            start_time = perf_counter()
             results = original_analyze(self, *args, **kwargs)
-            latency_ms = (time.time() - start_time) * 1000
+            latency_ms = (perf_counter() - start_time) * 1000
 
             try:
                 language = _arg_or_kwarg(args, kwargs, 1, "language")
@@ -115,7 +119,7 @@ def _patch_analyzer():
                     "flag": flag,
                     "nlp_engine": _safe_class_name(getattr(self, "nlp_engine", None)),
                     "context_enhancer": _safe_class_name(getattr(self, "context_aware_enhancer", None)),
-                    "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                    "created_at": _utc_now_iso()
                 }
                 submit_event(event)
             except Exception as e:
