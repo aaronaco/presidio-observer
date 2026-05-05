@@ -1,6 +1,6 @@
 [project]
 name = "presidio-observer-backend"
-version = "0.1.0"
+version = "1.0.0"
 description = "Local FastAPI and SQLite backend for Presidio Observer"
 authors = [
     {name = "Aaron A.", email = "aaronacodev@gmail.com"}
