@@ -18,6 +18,7 @@ import { EventDetailPanel } from './components/EventDetailPanel'
 import { EventTable } from './components/EventTable'
 import { EventTableSkeleton } from './components/EventTableSkeleton'
 import { MetricTile } from './components/MetricTile'
+import { SectionHelp } from './components/SectionHelp'
 import { eventEntityTypes } from './lib/events'
 import { formatEvaluationPercent, formatNumber, formatPercent } from './lib/formatters'
 
@@ -192,6 +193,12 @@ export function App() {
           label="Reported F2"
           loading={isInitialLoading}
           value={formatEvaluationPercent(dashboard.evaluation?.f2_score)}
+          help={(
+            <SectionHelp title="Reported F2">
+              This score uses saved correct labels and manually reported missed counts.
+              It is useful for local review, but it is not a full ground-truth benchmark.
+            </SectionHelp>
+          )}
         />
       </Grid>
 

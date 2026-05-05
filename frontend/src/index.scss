@@ -79,6 +79,31 @@ body {
   font-size: 0.875rem;
 }
 
+.metric-tile-label,
+.detail-label-with-help,
+.missed-entity-form h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.section-help-trigger {
+  color: #6f6f6f;
+}
+
+.section-help-content {
+  max-width: 18rem;
+}
+
+.section-help-content strong,
+.section-help-content p {
+  display: block;
+}
+
+.section-help-content p {
+  margin: 0.35rem 0 0;
+}
+
 .metric-tile strong {
   font-size: clamp(2rem, 4vw, 3.25rem);
   font-weight: 300;

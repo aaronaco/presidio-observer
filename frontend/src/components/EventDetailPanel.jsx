@@ -16,6 +16,7 @@ import {
 } from '@carbon/react'
 
 import { DetailItem } from './DetailItem'
+import { SectionHelp } from './SectionHelp'
 import { formatDate, formatList, formatNumber } from '../lib/formatters'
 import {
   entityName,
@@ -127,7 +128,18 @@ function EventSummary({ event }) {
     <div className="detail-list">
       <DetailItem label="Created" value={formatDate(event.created_at)} />
       <DetailItem label="Correlation ID" value={event.correlation_id || 'n/a'} />
-      <DetailItem label="Confidence flag" value={event.flag || 'n/a'} />
+      <DetailItem
+        label={(
+          <span className="detail-label-with-help">
+            Confidence flag
+            <SectionHelp align="bottom-start" title="Confidence flag">
+              This flag is generated from analyzer metadata to highlight events worth
+              reviewing. Human labels are saved separately and do not change it.
+            </SectionHelp>
+          </span>
+        )}
+        value={event.flag || 'n/a'}
+      />
       <DetailItem label="Language" value={event.language || 'n/a'} />
       <DetailItem label="Latency" value={`${formatNumber(event.latency_ms, 1)} ms`} />
       <DetailItem label="Has PII" value={event.has_pii ? 'Yes' : 'No'} />
@@ -237,12 +249,12 @@ function EvaluationControls({
   return (
     <div className="evaluation-panel">
       <p>
-        Label whether the detected entity is correct. Labels are saved for evaluation
-        metrics and do not change the analyzer confidence flag.
+        Label the primary detected entity for this event. When offsets are available,
+        the label is saved against that entity span for evaluation metrics.
       </p>
       <p>
-        Missed entities need a separate workflow because they are not present in analyzer
-        results.
+        Labels do not change the analyzer confidence flag. Missed entities use a
+        separate type-and-count report because they are not present in analyzer results.
       </p>
       <div className="evaluation-actions">
         <Button
@@ -273,7 +285,13 @@ function EvaluationControls({
         </Button>
       </div>
       <div className="missed-entity-form">
-        <h3>Report missed entity</h3>
+        <h3>
+          Report missed entity
+          <SectionHelp align="bottom-start" title="Reported misses">
+            Missed entities are not returned by the analyzer, so Observer only records
+            the entity type and count. It does not store the missed text, value, or span.
+          </SectionHelp>
+        </h3>
         <p>No raw text, missed value, or span is stored.</p>
         <div className="missed-entity-fields">
           <Select
