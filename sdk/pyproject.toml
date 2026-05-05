@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "presidio-observer"
 version = "0.1.0"
-description = "Observability and evaluation tool for Microsoft Presidio"
-authors = ["your name <you@email.com>"]
+description = "Local developer tool for observing Microsoft Presidio analyzer behavior without storing raw text"
+authors = ["Aaron A. <aaronacodev@gmail.com>"]
 readme = "README.md"
 packages = [{include = "presidio_observer"}]
 
